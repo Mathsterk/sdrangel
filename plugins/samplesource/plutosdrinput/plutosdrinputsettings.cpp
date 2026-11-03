@@ -51,6 +51,7 @@ void PlutoSDRInputSettings::resetToDefaults()
 	m_transverterDeltaFrequency = 0;
     m_iqOrder = true;
     m_cs8 = false;
+    m_maxBufferKSamples = 1024;
     m_useReverseAPI = false;
     m_reverseAPIAddress = "127.0.0.1";
     m_reverseAPIPort = 8888;
@@ -87,6 +88,7 @@ QByteArray PlutoSDRInputSettings::serialize() const
     s.writeBool(25, m_iqOrder);
     s.writeString(26, m_title);
     s.writeBool(27, m_cs8);
+    s.writeU32(28, m_maxBufferKSamples);
 
 	return s.final();
 }
@@ -161,6 +163,7 @@ bool PlutoSDRInputSettings::deserialize(const QByteArray& data)
         d.readBool(25, &m_iqOrder, true);
         d.readString(26, &m_title, "PlutoSDR");
         d.readBool(27, &m_cs8, false);
+        d.readU32(28, &m_maxBufferKSamples, 1024);
 
 		return true;
 	}
@@ -310,6 +313,9 @@ void PlutoSDRInputSettings::applySettings(const QStringList& settingsKeys, const
     if (settingsKeys.contains("cs8")) {
         m_cs8 = settings.m_cs8;
     }
+    if (settingsKeys.contains("maxBufferKSamples")) {
+        m_maxBufferKSamples = settings.m_maxBufferKSamples;
+    }
     if (settingsKeys.contains("useReverseAPI")) {
         m_useReverseAPI = settings.m_useReverseAPI;
     }
@@ -396,6 +402,9 @@ QString PlutoSDRInputSettings::getDebugString(const QStringList& settingsKeys, b
     }
     if (settingsKeys.contains("cs8") || force) {
         ostr << " m_cs8: " << m_cs8;
+    }
+    if (settingsKeys.contains("maxBufferKSamples") || force) {
+        ostr << " m_maxBufferKSamples: " << m_maxBufferKSamples;
     }
     if (settingsKeys.contains("useReverseAPI") || force) {
         ostr << " m_useReverseAPI: " << m_useReverseAPI;

@@ -84,6 +84,7 @@ struct PlutoSDRInputSettings {
     qint64 m_transverterDeltaFrequency;
     bool m_iqOrder;
     bool m_cs8;                //!< Tezuka firmware: stream packed 8 bit I/Q (applied at start)
+    quint32 m_maxBufferKSamples; //!< Upper bound of the Rx buffer size in k samples (applied at start)
     bool     m_useReverseAPI;
     QString  m_reverseAPIAddress;
     uint16_t m_reverseAPIPort;

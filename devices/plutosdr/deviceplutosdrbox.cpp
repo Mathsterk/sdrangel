@@ -88,7 +88,7 @@ static const size_t nbStreamBlocks = 4;
 
 // Number of Rx kernel buffers (DMA blocks) kept in flight. More buffers absorb network jitter at high sample rates.
 // The count is derived from a total memory budget and kept within these bounds.
-static const unsigned int minRxKernelBuffers = 8;
+static const unsigned int minRxKernelBuffers = 4;
 static const unsigned int maxRxKernelBuffers = 64;
 static const size_t rxKernelBuffersBudgetBytes = 60*1000*1000;
 

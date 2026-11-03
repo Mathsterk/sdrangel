@@ -24,6 +24,7 @@
 #include <QMessageBox>
 #include <QFileDialog>
 #include <QSignalBlocker>
+#include <QStandardItemModel>
 
 #include "dsp/dspcommands.h"
 #include "gui/messagedialog.h"
@@ -50,7 +51,8 @@ PlutoSDRInputGui::PlutoSDRInputGui(DeviceUISet *deviceUISet, QWidget* parent) :
     m_deviceCenterFrequency(0),
     m_lastEngineState(DeviceAPI::StNotStarted),
     m_doApplySettings(true),
-    m_statusCounter(0)
+    m_statusCounter(0),
+    m_srHighLimit(DevicePlutoSDR::srHighLimitFreq)
 {
     m_deviceUISet = deviceUISet;
     setAttribute(Qt::WA_DeleteOnClose, true);
@@ -64,7 +66,11 @@ PlutoSDRInputGui::PlutoSDRInputGui(DeviceUISet *deviceUISet, QWidget* parent) :
     updateFrequencyLimits();
 
     ui->sampleRate->setColorMapper(ColorMapper(ColorMapper::GrayGreenYellow));
-    ui->sampleRate->setValueRange(8, DevicePlutoSDR::srLowLimitFreq, DevicePlutoSDR::srHighLimitFreq);
+    if (((PlutoSDRInput *) m_sampleSource)->isTezuka()) {
+        m_srHighLimit = DevicePlutoSDR::srHighLimitFreqTezuka;
+    }
+
+    ui->sampleRate->setValueRange(8, DevicePlutoSDR::srLowLimitFreq, m_srHighLimit);
 
     ui->lpf->setColorMapper(ColorMapper(ColorMapper::GrayYellow));
 
@@ -73,6 +79,14 @@ PlutoSDRInputGui::PlutoSDRInputGui(DeviceUISet *deviceUISet, QWidget* parent) :
     ui->lpf->setValueRange(5, minLimit/1000, maxLimit/1000);
 
     refreshGainLimits();
+
+    // CS8 needs Tezuka firmware: grey it out otherwise
+    if (!((PlutoSDRInput *) m_sampleSource)->isTezuka())
+    {
+        QStandardItem *cs8Item = qobject_cast<QStandardItemModel*>(ui->format->model())->item(1);
+        cs8Item->setEnabled(false);
+        cs8Item->setToolTip("CS8 needs Tezuka firmware");
+    }
 
     ui->lpFIR->setColorMapper(ColorMapper(ColorMapper::GrayYellow));
     ui->lpFIR->setValueRange(5, 1U, 56000U); // will be dynamically recalculated
@@ -224,9 +238,16 @@ void PlutoSDRInputGui::on_iqImbalance_toggled(bool checked)
     sendSettings();
 }
 
-void PlutoSDRInputGui::on_cs8_toggled(bool checked)
+void PlutoSDRInputGui::on_maxBuffer_valueChanged(int value)
 {
-    m_settings.m_cs8 = checked;
+    m_settings.m_maxBufferKSamples = value;
+    m_settingsKeys.append("maxBufferKSamples");
+    sendSettings();
+}
+
+void PlutoSDRInputGui::on_format_currentIndexChanged(int index)
+{
+    m_settings.m_cs8 = index == 1;
     m_settingsKeys.append("cs8");
     sendSettings();
 }
@@ -380,7 +401,7 @@ void PlutoSDRInputGui::displaySampleRate()
     {
         ui->sampleRateMode->setStyleSheet("QToolButton { background:rgb(60,60,60); }");
         ui->sampleRateMode->setText("SR");
-        ui->sampleRate->setValueRange(8, DevicePlutoSDR::srLowLimitFreq, DevicePlutoSDR::srHighLimitFreq);
+        ui->sampleRate->setValueRange(8, DevicePlutoSDR::srLowLimitFreq, m_srHighLimit);
         ui->sampleRate->setValue(m_settings.m_devSampleRate);
         ui->sampleRate->setToolTip("Device to host sample rate (S/s)");
         ui->deviceRateText->setToolTip("Baseband sample rate (S/s)");
@@ -391,7 +412,7 @@ void PlutoSDRInputGui::displaySampleRate()
     {
         ui->sampleRateMode->setStyleSheet("QToolButton { background:rgb(50,50,50); }");
         ui->sampleRateMode->setText("BB");
-        ui->sampleRate->setValueRange(8, DevicePlutoSDR::srLowLimitFreq/(1<<m_settings.m_log2Decim), DevicePlutoSDR::srHighLimitFreq/(1<<m_settings.m_log2Decim));
+        ui->sampleRate->setValueRange(8, DevicePlutoSDR::srLowLimitFreq/(1<<m_settings.m_log2Decim), m_srHighLimit/(1<<m_settings.m_log2Decim));
         ui->sampleRate->setValue(m_settings.m_devSampleRate/(1<<m_settings.m_log2Decim));
         ui->sampleRate->setToolTip("Baseband sample rate (S/s)");
         ui->deviceRateText->setToolTip("Device to host sample rate (S/s)");
@@ -444,7 +465,10 @@ void PlutoSDRInputGui::displaySettings()
     ui->bbDCOffset->setChecked(m_settings.m_hwBBDCBlock);
     ui->rfDCOffset->setChecked(m_settings.m_hwRFDCBlock);
     ui->hwIQImbalance->setChecked(m_settings.m_hwIQCorrection);
-    ui->cs8->setChecked(m_settings.m_cs8);
+    ui->maxBuffer->setValue(m_settings.m_maxBufferKSamples);
+    // show the format actually streamed: CS16 when CS8 is not available. Keep the CS8 preference in settings.
+    QSignalBlocker formatBlocker(ui->format);
+    ui->format->setCurrentIndex(m_settings.m_cs8 && ((PlutoSDRInput *) m_sampleSource)->isTezuka() ? 1 : 0);
     ui->loPPM->setValue(m_settings.m_LOppmTenths);
     ui->loPPMText->setText(QString("%1").arg(QString::number(m_settings.m_LOppmTenths/10.0, 'f', 1)));
 
@@ -575,7 +599,7 @@ void PlutoSDRInputGui::setFIRBWLimits()
 void PlutoSDRInputGui::setSampleRateLimits()
 {
     uint32_t low = ui->lpFIREnable->isChecked() ? DevicePlutoSDR::srLowLimitFreq / (1<<ui->lpFIRDecimation->currentIndex()) : DevicePlutoSDR::srLowLimitFreq;
-    ui->sampleRate->setValueRange(8, low, DevicePlutoSDR::srHighLimitFreq);
+    ui->sampleRate->setValueRange(8, low, m_srHighLimit);
     ui->sampleRate->setValue(m_settings.m_devSampleRate);
 }
 
@@ -689,7 +713,8 @@ void PlutoSDRInputGui::makeUIConnections()
     QObject::connect(ui->bbDCOffset, &ButtonSwitch::toggled, this, &PlutoSDRInputGui::on_bbDCOffset_toggled);
     QObject::connect(ui->hwIQImbalance, &ButtonSwitch::toggled, this, &PlutoSDRInputGui::on_hwIQImbalance_toggled);
     QObject::connect(ui->iqImbalance, &ButtonSwitch::toggled, this, &PlutoSDRInputGui::on_iqImbalance_toggled);
-    QObject::connect(ui->cs8, &ButtonSwitch::toggled, this, &PlutoSDRInputGui::on_cs8_toggled);
+    QObject::connect(ui->format, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &PlutoSDRInputGui::on_format_currentIndexChanged);
+    QObject::connect(ui->maxBuffer, QOverload<int>::of(&QSpinBox::valueChanged), this, &PlutoSDRInputGui::on_maxBuffer_valueChanged);
     QObject::connect(ui->swDecim, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &PlutoSDRInputGui::on_swDecim_currentIndexChanged);
     QObject::connect(ui->fcPos, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &PlutoSDRInputGui::on_fcPos_currentIndexChanged);
     QObject::connect(ui->sampleRate, &ValueDial::changed, this, &PlutoSDRInputGui::on_sampleRate_changed);

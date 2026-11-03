@@ -27,6 +27,7 @@ const uint64_t DevicePlutoSDR::txLOHighLimitFreq = 6000000000UL; //  6 GHz: take
 
 const uint32_t DevicePlutoSDR::srLowLimitFreq  = (25000000U/12U)+3U; // 25/12 MS/s without FIR interpolation/decimation (+3 so it is the next multiple of 4)
 const uint32_t DevicePlutoSDR::srHighLimitFreq = 20000000U;     // 20 MS/s: take AD9363 speces
+const uint32_t DevicePlutoSDR::srHighLimitFreqTezuka = 30000000U; // 30 MS/s: Tezuka firmware boards (AD9361) with CS8 streaming
 
 const uint32_t DevicePlutoSDR::bbLPRxLowLimitFreq  =   200000U; // 200 kHz
 const uint32_t DevicePlutoSDR::bbLPRxHighLimitFreq = 14000000U; // 14 MHz

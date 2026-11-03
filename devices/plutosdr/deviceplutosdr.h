@@ -48,6 +48,7 @@ public:
     static const uint64_t txLOHighLimitFreq; //!< Tx LO hard coded lower frequency limit (Hz)
     static const uint32_t srLowLimitFreq;  //!< Device sample rate lower limit in S/s
     static const uint32_t srHighLimitFreq; //!< Device sample rate higher limit in S/s
+    static const uint32_t srHighLimitFreqTezuka; //!< Device sample rate higher limit in S/s with Tezuka firmware
     static const uint32_t bbLPRxLowLimitFreq;   //!< Analog base band Rx low pass filter lower frequency limit (Hz)
     static const uint32_t bbLPRxHighLimitFreq;  //!< Analog base band Rx high pass filter lower frequency limit (Hz)
     static const uint32_t bbLPTxLowLimitFreq;   //!< Analog base band Tx low pass filter lower frequency limit (Hz)

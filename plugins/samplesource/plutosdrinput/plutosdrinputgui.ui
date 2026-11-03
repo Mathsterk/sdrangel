@@ -343,12 +343,41 @@
       </widget>
      </item>
      <item>
-      <widget class="ButtonSwitch" name="cs8">
+      <widget class="QComboBox" name="format">
        <property name="toolTip">
-        <string>Tezuka firmware only: stream packed 8 bit I/Q (halves network bandwidth). Applied at next start.</string>
+        <string>Sample format. CS8 (packed 8 bit I/Q, halves network bandwidth) needs Tezuka firmware. Applied at next start.</string>
        </property>
-       <property name="text">
-        <string>CS8</string>
+       <item>
+        <property name="text">
+         <string>CS16</string>
+        </property>
+       </item>
+       <item>
+        <property name="text">
+         <string>CS8</string>
+        </property>
+       </item>
+      </widget>
+     </item>
+     <item>
+      <widget class="QSpinBox" name="maxBuffer">
+       <property name="toolTip">
+        <string>Maximum Rx buffer size (k samples). The buffer holds ~50 ms of samples up to this limit. Applied at next start.</string>
+       </property>
+       <property name="suffix">
+        <string>k</string>
+       </property>
+       <property name="minimum">
+        <number>16</number>
+       </property>
+       <property name="maximum">
+        <number>4096</number>
+       </property>
+       <property name="singleStep">
+        <number>256</number>
+       </property>
+       <property name="value">
+        <number>1024</number>
        </property>
       </widget>
      </item>

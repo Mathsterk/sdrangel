@@ -66,6 +66,7 @@ private:
     int m_lastEngineState;
     bool m_doApplySettings;
     uint32_t m_statusCounter;
+    uint32_t m_srHighLimit; //!< Device sample rate higher limit depending on firmware
     MessageQueue m_inputMessageQueue;
 
     void displaySettings();
@@ -90,7 +91,8 @@ private slots:
     void on_bbDCOffset_toggled(bool checked);
     void on_hwIQImbalance_toggled(bool checked);
     void on_iqImbalance_toggled(bool checked);
-    void on_cs8_toggled(bool checked);
+    void on_format_currentIndexChanged(int index);
+    void on_maxBuffer_valueChanged(int value);
     void on_swDecim_currentIndexChanged(int index);
     void on_fcPos_currentIndexChanged(int index);
     void on_sampleRate_changed(quint64 value);

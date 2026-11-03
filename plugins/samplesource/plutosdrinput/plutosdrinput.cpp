@@ -40,16 +40,17 @@
 #include "plutosdrinputthread.h"
 
 #define PLUTOSDR_BLOCKSIZE_SAMPLES (16*1024) //complex samples per buffer (must be multiple of 64)
-#define PLUTOSDR_BLOCKSIZE_MAX_SAMPLES (1024*1024) //upper bound of the rate dependent block size
 
 // Size the Rx buffer to ~50 ms of samples at the device sample rate so that high sample rates
-// over network backends do not underflow. Rounded up to a multiple of the default block size.
-static uint32_t plutoSDRBlockSizeSamples(uint64_t devSampleRate)
+// over network backends do not underflow. Rounded up to a multiple of the default block size
+// and bounded by the user set maximum.
+static uint32_t plutoSDRBlockSizeSamples(uint64_t devSampleRate, uint32_t maxBufferKSamples)
 {
+    uint64_t maxBlockSize = std::max<uint64_t>(((uint64_t) maxBufferKSamples * 1024) / PLUTOSDR_BLOCKSIZE_SAMPLES, 1) * PLUTOSDR_BLOCKSIZE_SAMPLES;
     uint64_t blockSize = devSampleRate / 20;
     blockSize = ((blockSize + PLUTOSDR_BLOCKSIZE_SAMPLES - 1) / PLUTOSDR_BLOCKSIZE_SAMPLES) * PLUTOSDR_BLOCKSIZE_SAMPLES;
     blockSize = std::max<uint64_t>(blockSize, PLUTOSDR_BLOCKSIZE_SAMPLES);
-    return std::min<uint64_t>(blockSize, PLUTOSDR_BLOCKSIZE_MAX_SAMPLES);
+    return std::min<uint64_t>(blockSize, maxBlockSize);
 }
 
 MESSAGE_CLASS_DEFINITION(PlutoSDRInput::MsgConfigurePlutoSDR, Message)
@@ -141,7 +142,7 @@ bool PlutoSDRInput::start()
 
     // start / stop streaming is done in the thread.
 
-    uint32_t blockSizeSamples = plutoSDRBlockSizeSamples(m_settings.m_devSampleRate);
+    uint32_t blockSizeSamples = plutoSDRBlockSizeSamples(m_settings.m_devSampleRate, m_settings.m_maxBufferKSamples);
     DevicePlutoSDRBox *plutoBox = m_deviceShared.m_deviceParams->getBox();
     plutoBox->deleteRxBuffer();
     plutoBox->setRxCS8(m_settings.m_cs8);
@@ -853,6 +854,17 @@ void PlutoSDRInput::getGainRange(qint64& minGain, qint64& stepGain, qint64& maxG
     DevicePlutoSDRBox *plutoBox = m_deviceShared.m_deviceParams->getBox();
 
     plutoBox->getGainRange(minGain, stepGain, maxGain);
+}
+
+bool PlutoSDRInput::isTezuka()
+{
+    if (!m_open)
+    {
+        qDebug("PlutoSDRInput::isTezuka: device not open");
+        return false;
+    }
+
+    return m_deviceShared.m_deviceParams->getBox()->isTezuka();
 }
 
 void PlutoSDRInput::getGain(int& gaindB)
