@@ -336,6 +336,23 @@
       </widget>
      </item>
      <item>
+      <widget class="Line" name="line_cs8">
+       <property name="orientation">
+        <enum>Qt::Vertical</enum>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="ButtonSwitch" name="cs8">
+       <property name="toolTip">
+        <string>Tezuka firmware only: stream packed 8 bit I/Q (halves network bandwidth). Applied at next start.</string>
+       </property>
+       <property name="text">
+        <string>CS8</string>
+       </property>
+      </widget>
+     </item>
+     <item>
       <spacer name="horizontalSpacer_3">
        <property name="orientation">
         <enum>Qt::Horizontal</enum>

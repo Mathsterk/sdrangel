@@ -90,6 +90,7 @@ private slots:
     void on_bbDCOffset_toggled(bool checked);
     void on_hwIQImbalance_toggled(bool checked);
     void on_iqImbalance_toggled(bool checked);
+    void on_cs8_toggled(bool checked);
     void on_swDecim_currentIndexChanged(int index);
     void on_fcPos_currentIndexChanged(int index);
     void on_sampleRate_changed(quint64 value);

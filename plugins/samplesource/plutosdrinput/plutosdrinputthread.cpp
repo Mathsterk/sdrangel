@@ -81,7 +81,9 @@ void PlutoSDRInputThread::run()
     qDebug("PlutoSDRInputThread::run: rxBufferStep: %ld bytes", p_inc);
     qDebug("PlutoSDRInputThread::run: Rx sample size is %ld bytes", m_plutoBox->getRxSampleSize());
     qDebug("PlutoSDRInputThread::run: Tx sample size is %ld bytes", m_plutoBox->getTxSampleSize());
-    qDebug("PlutoSDRInputThread::run: nominal nbytes_rx is %d bytes with 1 refill", m_blockSizeSamples*4);
+    bool cs8 = m_plutoBox->getRxCS8();
+    int nbytesExpected = m_blockSizeSamples * p_inc;
+    qDebug("PlutoSDRInputThread::run: nominal nbytes_rx is %d bytes with 1 refill (%s)", nbytesExpected, cs8 ? "CS8" : "CS16");
 
     m_running = true;
     m_startWaiter.wakeAll();
@@ -102,9 +104,9 @@ void PlutoSDRInputThread::run()
             break;
         }
 
-        if (nbytes_rx != m_blockSizeSamples*4)
+        if (nbytes_rx != nbytesExpected)
         {
-            qWarning("PlutoSDRInputThread::run: error refilling buf %d / %d",(int) nbytes_rx, (int)  m_blockSizeSamples*4);
+            qWarning("PlutoSDRInputThread::run: error refilling buf %d / %d",(int) nbytes_rx, nbytesExpected);
             usleep(200000);
             continue;
         }
@@ -117,10 +119,22 @@ void PlutoSDRInputThread::run()
         // I and Q each being two bytes
         // conversion is not needed as samples are little endian
 
-        for (p_dat = m_plutoBox->rxBufferFirst(); p_dat < p_end; p_dat += p_inc)
+        if (cs8)
         {
-            m_buf[ihs++] = *((int16_t *) p_dat);
-            m_buf[ihs++] = *(((int16_t *) p_dat) + 1);
+            // Tezuka CS8: p_inc is 2, I and Q each being one byte. Scale to the 12 bit range of CS16.
+            for (p_dat = m_plutoBox->rxBufferFirst(); p_dat < p_end; p_dat += p_inc)
+            {
+                m_buf[ihs++] = ((int8_t) p_dat[0]) * 16;
+                m_buf[ihs++] = ((int8_t) p_dat[1]) * 16;
+            }
+        }
+        else
+        {
+            for (p_dat = m_plutoBox->rxBufferFirst(); p_dat < p_end; p_dat += p_inc)
+            {
+                m_buf[ihs++] = *((int16_t *) p_dat);
+                m_buf[ihs++] = *(((int16_t *) p_dat) + 1);
+            }
         }
 
         if (m_iqOrder) {

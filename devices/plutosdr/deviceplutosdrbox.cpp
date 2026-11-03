@@ -19,6 +19,7 @@
 // along with this program. If not, see <http://www.gnu.org/licenses/>.          //
 ///////////////////////////////////////////////////////////////////////////////////
 
+#include <algorithm>
 #include <iostream>
 #include <cstdio>
 #include <cstring>
@@ -85,6 +86,12 @@ static const struct iio_attr *findAttrByFilename(const struct iio_device *dev, c
 static const size_t nbStreamBlocks = 4;
 #endif
 
+// Number of Rx kernel buffers (DMA blocks) kept in flight. More buffers absorb network jitter at high sample rates.
+// The count is derived from a total memory budget and kept within these bounds.
+static const unsigned int minRxKernelBuffers = 8;
+static const unsigned int maxRxKernelBuffers = 64;
+static const size_t rxKernelBuffersBudgetBytes = 60*1000*1000;
+
 // In libiio 1.x channels are enabled in a mask that is applied when the stream is created
 static void enableChannel(struct iio_channel *chn, struct iio_channels_mask *mask)
 {
@@ -126,6 +133,8 @@ DevicePlutoSDRBox::DevicePlutoSDRBox(const std::string& uri) :
         m_txMask(nullptr),
         m_txStream(nullptr),
         m_txBlock(nullptr),
+        m_tezuka(false),
+        m_rxCS8(false),
         m_xoInitial(0),
         m_temp(0.0f),
         m_rxSampleBytes(0),
@@ -168,6 +177,15 @@ DevicePlutoSDRBox::DevicePlutoSDRBox(const std::string& uri) :
 
     if (m_valid)
     {
+#ifdef LIBIIO_V1
+        const struct iio_attr *fwAttr = iio_context_find_attr(m_ctx, "fw_version");
+        const char *fwVersion = fwAttr ? iio_attr_get_static_value(fwAttr) : nullptr;
+#else
+        const char *fwVersion = iio_context_get_attr_value(m_ctx, "fw_version");
+#endif
+        m_tezuka = fwVersion && (strncmp(fwVersion, "tezuka", 6) == 0);
+        qDebug("DevicePlutoSDRBox::DevicePlutoSDRBox: fw_version: %s tezuka: %s", fwVersion ? fwVersion : "unknown", m_tezuka ? "true" : "false");
+
         std::regex channelIdReg("voltage([0-9]+)");
 
         getXO();
@@ -669,8 +687,28 @@ void DevicePlutoSDRBox::setTxLOPowerdown(bool powerdown)
     set_params(DEVICE_PHY, params);
 }
 
+void DevicePlutoSDRBox::setRxCS8(bool cs8)
+{
+    m_rxCS8 = cs8 && m_tezuka;
+
+    // Tezuka firmware packs 8 bit I and Q in the I channel when the Q channel is disabled
+    if (m_rxChannels.size() > 1)
+    {
+        if (m_rxCS8) {
+            disableChannel(m_rxChannels.at(1), m_rxMask);
+        } else {
+            enableChannel(m_rxChannels.at(1), m_rxMask);
+        }
+    }
+}
+
 struct iio_buffer *DevicePlutoSDRBox::createRxBuffer(unsigned int size, bool cyclic)
 {
+    size_t bufferBytes = (size_t) size * (m_rxCS8 ? 2 : 4);
+    unsigned int nbRxKernelBuffers = rxKernelBuffersBudgetBytes / std::max<size_t>(bufferBytes, 1);
+    nbRxKernelBuffers = std::min(std::max(nbRxKernelBuffers, minRxKernelBuffers), maxRxKernelBuffers);
+    qDebug("DevicePlutoSDRBox::createRxBuffer: %u samples x %u kernel buffers", size, nbRxKernelBuffers);
+
 #ifdef LIBIIO_V1
     (void) cyclic; // cyclic mode only exists for output buffers in libiio 1.x
     m_rxBuf = nullptr;
@@ -682,7 +720,7 @@ struct iio_buffer *DevicePlutoSDRBox::createRxBuffer(unsigned int size, bool cyc
 
         if (buf)
         {
-            m_rxStream = iio_buffer_create_stream(buf, nbStreamBlocks, size, m_rxMask);
+            m_rxStream = iio_buffer_create_stream(buf, nbRxKernelBuffers, size, m_rxMask);
             int err = iio_err(m_rxStream);
 
             if (err)
@@ -697,7 +735,14 @@ struct iio_buffer *DevicePlutoSDRBox::createRxBuffer(unsigned int size, bool cyc
         }
     }
 #else
-    if (m_devRx) {
+    if (m_devRx)
+    {
+        int ret = iio_device_set_kernel_buffers_count(m_devRx, nbRxKernelBuffers);
+
+        if (ret < 0) {
+            qWarning("DevicePlutoSDRBox::createRxBuffer: cannot set kernel buffers count: %s (%d)", strerror(-ret), ret);
+        }
+
         m_rxBuf = iio_device_create_buffer(m_devRx, size, cyclic ? '\1' : '\0');
     } else {
         m_rxBuf = nullptr;

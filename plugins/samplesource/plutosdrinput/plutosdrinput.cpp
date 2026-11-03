@@ -19,6 +19,8 @@
 // along with this program. If not, see <http://www.gnu.org/licenses/>.          //
 ///////////////////////////////////////////////////////////////////////////////////
 
+#include <algorithm>
+
 #include <QDebug>
 #include <QMutexLocker>
 #include <QNetworkReply>
@@ -38,6 +40,17 @@
 #include "plutosdrinputthread.h"
 
 #define PLUTOSDR_BLOCKSIZE_SAMPLES (16*1024) //complex samples per buffer (must be multiple of 64)
+#define PLUTOSDR_BLOCKSIZE_MAX_SAMPLES (1024*1024) //upper bound of the rate dependent block size
+
+// Size the Rx buffer to ~50 ms of samples at the device sample rate so that high sample rates
+// over network backends do not underflow. Rounded up to a multiple of the default block size.
+static uint32_t plutoSDRBlockSizeSamples(uint64_t devSampleRate)
+{
+    uint64_t blockSize = devSampleRate / 20;
+    blockSize = ((blockSize + PLUTOSDR_BLOCKSIZE_SAMPLES - 1) / PLUTOSDR_BLOCKSIZE_SAMPLES) * PLUTOSDR_BLOCKSIZE_SAMPLES;
+    blockSize = std::max<uint64_t>(blockSize, PLUTOSDR_BLOCKSIZE_SAMPLES);
+    return std::min<uint64_t>(blockSize, PLUTOSDR_BLOCKSIZE_MAX_SAMPLES);
+}
 
 MESSAGE_CLASS_DEFINITION(PlutoSDRInput::MsgConfigurePlutoSDR, Message)
 MESSAGE_CLASS_DEFINITION(PlutoSDRInput::MsgStartStop, Message)
@@ -128,7 +141,26 @@ bool PlutoSDRInput::start()
 
     // start / stop streaming is done in the thread.
 
-    m_plutoSDRInputThread = new PlutoSDRInputThread(PLUTOSDR_BLOCKSIZE_SAMPLES, m_deviceShared.m_deviceParams->getBox(), &m_sampleFifo);
+    uint32_t blockSizeSamples = plutoSDRBlockSizeSamples(m_settings.m_devSampleRate);
+    DevicePlutoSDRBox *plutoBox = m_deviceShared.m_deviceParams->getBox();
+    plutoBox->deleteRxBuffer();
+    plutoBox->setRxCS8(m_settings.m_cs8);
+    m_plutoRxBuffer = plutoBox->createRxBuffer(blockSizeSamples, false);
+
+    if (!m_plutoRxBuffer)
+    {
+        qCritical("PlutoSDRInput::start: cannot create Rx buffer of %u samples", blockSizeSamples);
+        return false;
+    }
+
+    if ((m_sampleFifo.size() < blockSizeSamples) && !m_sampleFifo.setSize(blockSizeSamples))
+    {
+        qCritical("PlutoSDRInput::start: could not allocate SampleFifo");
+        return false;
+    }
+
+    qDebug("PlutoSDRInput::start: Rx block size: %u samples", blockSizeSamples);
+    m_plutoSDRInputThread = new PlutoSDRInputThread(blockSizeSamples, plutoBox, &m_sampleFifo);
     connect(m_plutoSDRInputThread, &PlutoSDRInputThread::error, this, &PlutoSDRInput::handleError, Qt::QueuedConnection);
     qDebug("PlutoSDRInput::start: thread created");
 

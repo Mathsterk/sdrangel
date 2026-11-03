@@ -224,6 +224,13 @@ void PlutoSDRInputGui::on_iqImbalance_toggled(bool checked)
     sendSettings();
 }
 
+void PlutoSDRInputGui::on_cs8_toggled(bool checked)
+{
+    m_settings.m_cs8 = checked;
+    m_settingsKeys.append("cs8");
+    sendSettings();
+}
+
 void PlutoSDRInputGui::on_rfDCOffset_toggled(bool checked)
 {
     m_settings.m_hwRFDCBlock = checked;
@@ -437,6 +444,7 @@ void PlutoSDRInputGui::displaySettings()
     ui->bbDCOffset->setChecked(m_settings.m_hwBBDCBlock);
     ui->rfDCOffset->setChecked(m_settings.m_hwRFDCBlock);
     ui->hwIQImbalance->setChecked(m_settings.m_hwIQCorrection);
+    ui->cs8->setChecked(m_settings.m_cs8);
     ui->loPPM->setValue(m_settings.m_LOppmTenths);
     ui->loPPMText->setText(QString("%1").arg(QString::number(m_settings.m_LOppmTenths/10.0, 'f', 1)));
 
@@ -681,6 +689,7 @@ void PlutoSDRInputGui::makeUIConnections()
     QObject::connect(ui->bbDCOffset, &ButtonSwitch::toggled, this, &PlutoSDRInputGui::on_bbDCOffset_toggled);
     QObject::connect(ui->hwIQImbalance, &ButtonSwitch::toggled, this, &PlutoSDRInputGui::on_hwIQImbalance_toggled);
     QObject::connect(ui->iqImbalance, &ButtonSwitch::toggled, this, &PlutoSDRInputGui::on_iqImbalance_toggled);
+    QObject::connect(ui->cs8, &ButtonSwitch::toggled, this, &PlutoSDRInputGui::on_cs8_toggled);
     QObject::connect(ui->swDecim, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &PlutoSDRInputGui::on_swDecim_currentIndexChanged);
     QObject::connect(ui->fcPos, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &PlutoSDRInputGui::on_fcPos_currentIndexChanged);
     QObject::connect(ui->sampleRate, &ValueDial::changed, this, &PlutoSDRInputGui::on_sampleRate_changed);

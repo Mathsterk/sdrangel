@@ -81,6 +81,7 @@ public:
     DevicePlutoSDRBox(const std::string& uri);
     ~DevicePlutoSDRBox();
     bool isValid() const { return m_valid; }
+    bool isTezuka() const { return m_tezuka; } //!< Tezuka firmware with packed 8 bit I/Q (CS8) support
     static bool probeURI(const std::string& uri);
 
     void set_params(DeviceType devType, const std::vector<std::string> &params);
@@ -98,6 +99,8 @@ public:
     int getNbRx() const { return m_rxChannels.size() / 2; }
     int getNbTx() const { return m_txChannels.size() / 2; }
     int getRxSampleBytes() const { return m_rxSampleBytes; }
+    void setRxCS8(bool cs8);   //!< Tezuka only: stream first Rx as packed 8 bit I/Q. Apply before createRxBuffer.
+    bool getRxCS8() const { return m_rxCS8; }
     int getTxSampleBytes() const { return m_txSampleBytes; }
     struct iio_buffer *createRxBuffer(unsigned int size, bool cyclic);
     struct iio_buffer *createTxBuffer(unsigned int size, bool cyclic);
@@ -147,6 +150,8 @@ private:
     struct iio_stream  *m_txStream;     //!< libiio 1.x: Tx block stream
     const struct iio_block *m_txBlock;  //!< libiio 1.x: Tx block being filled
     bool m_valid;
+    bool m_tezuka;
+    bool m_rxCS8;
     int64_t m_xoInitial;
     float m_temp;
     int m_rxSampleBytes; //!< size in bytes of a Rx I or Q sample. Rx must be opened.
